@@ -12,23 +12,30 @@ export class EmployeeOrgApp implements IEmployeeOrgApp {
         this.stack_redo = []
     }
     move(employeeID: number, supervisorID: number) {
-        let [employee, empParent] = this.getEpmloyee(employeeID, this.ceo) ?? [null, null]
-        let [supervisor] = this.getEpmloyee(supervisorID, this.ceo) ?? [null, null]
-        if (employee && supervisor && empParent) { // we add empParent because the ceo cann't be subordinate
-            //conserve prevoious state
-            const prevState: StackState = {
-                employeeId: employeeID,
-                oldSupervisor: empParent.uniqueId,
-                oldSubordinates: employee.subordinates.map((emp: Employee) => emp.uniqueId)
+        // execute move action when employee ID is different from new supervisor ID
+        if(employeeID!=supervisorID){
+            const [employee, empParent] = this.getEpmloyee(employeeID, this.ceo) ?? [null, null]
+            const [supervisor] = this.getEpmloyee(supervisorID, this.ceo) ?? [null, null]
+            // execute move action when the new supervisor is different from old supervisor
+            if ((employee && supervisor && empParent) && (supervisor.uniqueId!=empParent.uniqueId)) { // we add empParent because the ceo cann't be subordinate
+                //conserve prevoious state
+                const prevState: StackState = {
+                    employeeId: employeeID,
+                    oldSupervisor: empParent.uniqueId,
+                    oldSubordinates: employee.subordinates.map((emp: Employee) => emp.uniqueId)
+                }
+                //add the previous state to the stacke
+                this.stack_undo.push(prevState)
+
+                // Ignore redo in new action
+                this.stack_redo=[]
+                //add subordinates of the employee to the supervisor of this current employee
+                this.changeSupervisor(employee, empParent)
+                //remove employee's old subordinates
+                employee.subordinates = []
+                //add the employee to new supervisor
+                supervisor.subordinates.push(employee)
             }
-            //add the previous state to the stacke
-            this.stack_undo.push(prevState)
-            //add subordinates of the employee to the supervisor of this current employee
-            this.changeSupervisor(employee, empParent)
-            //remove employee's old subordinates
-            employee.subordinates = []
-            //add the employee to new supervisor
-            supervisor.subordinates.push(employee)
         }
     }
     undo() {
@@ -44,8 +51,8 @@ export class EmployeeOrgApp implements IEmployeeOrgApp {
         }
     }
     private changeState(oldState: StackState, actionType: string) {
-        let [employee, empParent] = this.getEpmloyee(oldState.employeeId, this.ceo) ?? [null, null]
-        const [oldSupervisor,] = this.getEpmloyee(oldState.oldSupervisor, this.ceo) ?? [null, null]
+        const [employee, empParent] = this.getEpmloyee(oldState.employeeId, this.ceo)
+        const [oldSupervisor] = this.getEpmloyee(oldState.oldSupervisor, this.ceo)
         if (employee && empParent && oldSupervisor) {
             const currentState: StackState = {
                 employeeId: employee.uniqueId,
@@ -77,6 +84,7 @@ export class EmployeeOrgApp implements IEmployeeOrgApp {
             oldSupervisor.subordinates.push(employee)
         }
     }
+
     // getEmployee recursive function to browse tree and get the specific employee
     private getEpmloyee(employeeID: number, employeeRoot: Employee, employeeParent: Employee = null!): any {
         if (employeeRoot.uniqueId === employeeID) {
@@ -90,6 +98,7 @@ export class EmployeeOrgApp implements IEmployeeOrgApp {
         }
         return [null, null]
     }
+
     // Change the supervisor of the subordinates of employee
     private changeSupervisor(employee: Employee, newSupervisor: Employee) {
         // remove employee from the supervisor subordinates
